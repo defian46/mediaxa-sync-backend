@@ -14,6 +14,9 @@ interface SyncQueueDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun enqueue(item: SyncQueueItem): Long
 
+    @Query("SELECT EXISTS(SELECT 1 FROM sync_queue WHERE uuid = :uuid AND status IN ('PENDING', 'IN_PROGRESS', 'FAILED'))")
+    suspend fun hasPendingMutation(uuid: String): Boolean
+
     @Update
     suspend fun update(item: SyncQueueItem)
 

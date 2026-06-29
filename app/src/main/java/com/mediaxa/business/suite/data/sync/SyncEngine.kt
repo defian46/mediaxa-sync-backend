@@ -8,8 +8,12 @@ import com.mediaxa.business.suite.data.local.entity.SyncQueueStatus
 import com.mediaxa.business.suite.data.remote.datasource.RemoteDataSource
 import com.mediaxa.business.suite.data.remote.datasource.SyncResult
 import com.mediaxa.business.suite.data.remote.dto.*
+import com.mediaxa.business.suite.data.local.datasource.LocalDataSource
+import com.mediaxa.business.suite.data.local.entity.*
+import com.mediaxa.business.suite.data.remote.mapper.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 
 private const val TAG = "SyncEngine"
 private const val BATCH_SIZE = 50
@@ -29,7 +33,8 @@ private const val BATCH_SIZE = 50
  */
 class SyncEngine(
     private val syncQueueDao: SyncQueueDao,
-    private val remoteDataSource: RemoteDataSource
+    private val remoteDataSource: RemoteDataSource,
+    private val localDataSource: LocalDataSource? = null
 ) {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -41,6 +46,9 @@ class SyncEngine(
      * @return [SyncEngineResult] with statistics for monitoring UI
      */
     suspend fun processQueue(): SyncEngineResult {
+        // Enqueue any local pending edits that do not have sync queue entries yet
+        autoEnqueueOrphanedEntities()
+
         // Crash recovery: reset any IN_PROGRESS items from a previous crashed session
         syncQueueDao.recoverStuckItems()
 
@@ -226,6 +234,93 @@ class SyncEngine(
                 null
             }
         }
+
+    private suspend fun autoEnqueueOrphanedEntities() {
+        val lds = localDataSource ?: return
+        val settings = lds.storeSettingDao.getSettings()
+        val storeId = settings?.storeId ?: 1L
+        val deviceId = settings?.deviceId ?: "DEV-UNKNOWN"
+
+        // 1. Categories
+        val unsyncedCategories = lds.categoryDao.getUnsyncedCategories()
+        for (category in unsyncedCategories) {
+            if (!syncQueueDao.hasPendingMutation(category.uuid)) {
+                val dto = category.toDto()
+                val payloadJson = json.encodeToString(CategoryDto.serializer(), dto)
+                val operation = if (category.isDeleted) "DELETE" else "CREATE"
+                syncQueueDao.enqueue(
+                    SyncQueueItem(
+                        uuid = category.uuid,
+                        storeId = storeId,
+                        deviceId = deviceId,
+                        entityType = "CATEGORY",
+                        operation = operation,
+                        payload = payloadJson
+                    )
+                )
+            }
+        }
+
+        // 2. Menus
+        val unsyncedMenus = lds.menuDao.getUnsyncedMenus()
+        for (menu in unsyncedMenus) {
+            if (!syncQueueDao.hasPendingMutation(menu.uuid)) {
+                val dto = menu.toDto()
+                val payloadJson = json.encodeToString(MenuDto.serializer(), dto)
+                val operation = if (menu.isDeleted) "DELETE" else "CREATE"
+                syncQueueDao.enqueue(
+                    SyncQueueItem(
+                        uuid = menu.uuid,
+                        storeId = storeId,
+                        deviceId = deviceId,
+                        entityType = "MENU",
+                        operation = operation,
+                        payload = payloadJson
+                    )
+                )
+            }
+        }
+
+        // 3. Ingredients
+        val unsyncedIngredients = lds.ingredientDao.getUnsyncedIngredients()
+        for (ingredient in unsyncedIngredients) {
+            if (!syncQueueDao.hasPendingMutation(ingredient.uuid)) {
+                val dto = ingredient.toDto()
+                val payloadJson = json.encodeToString(IngredientDto.serializer(), dto)
+                val operation = if (ingredient.isDeleted) "DELETE" else "CREATE"
+                syncQueueDao.enqueue(
+                    SyncQueueItem(
+                        uuid = ingredient.uuid,
+                        storeId = storeId,
+                        deviceId = deviceId,
+                        entityType = "INGREDIENT",
+                        operation = operation,
+                        payload = payloadJson
+                    )
+                )
+            }
+        }
+
+        // 4. Recipes
+        val unsyncedRecipes = lds.menuRecipeDao.getUnsyncedRecipes()
+        for (recipe in unsyncedRecipes) {
+            if (!syncQueueDao.hasPendingMutation(recipe.uuid)) {
+                val dto = recipe.toDto()
+                val payloadJson = json.encodeToString(MenuRecipeDto.serializer(), dto)
+                val operation = if (recipe.isDeleted) "DELETE" else "CREATE"
+                syncQueueDao.enqueue(
+                    SyncQueueItem(
+                        uuid = recipe.uuid,
+                        storeId = storeId,
+                        deviceId = deviceId,
+                        entityType = "MENU_RECIPE",
+                        operation = operation,
+                        payload = payloadJson
+                    )
+                )
+            }
+        }
+    }
 }
 
 /** Summary of a single sync engine processing cycle. */

@@ -152,6 +152,9 @@ class MultiDeviceSyncTest {
 
     private fun createFakeDao(items: MutableList<SyncQueueItem>) = object : com.mediaxa.business.suite.data.local.dao.SyncQueueDao {
         override suspend fun enqueue(item: SyncQueueItem): Long { items.add(item); return items.size.toLong() }
+        override suspend fun hasPendingMutation(uuid: String): Boolean {
+            return items.any { it.uuid == uuid && it.status in listOf("PENDING", "IN_PROGRESS", "FAILED") }
+        }
         override suspend fun update(item: SyncQueueItem) {}
         override suspend fun getPendingItems(now: Long, limit: Int) =
             items.filter { it.status == "PENDING" && it.nextRetryAt <= now }.take(limit)

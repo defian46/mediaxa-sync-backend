@@ -32,6 +32,10 @@ class SyncEngineTest {
             return items.size.toLong()
         }
 
+        override suspend fun hasPendingMutation(uuid: String): Boolean {
+            return items.any { it.uuid == uuid && it.status in listOf("PENDING", "IN_PROGRESS", "FAILED") }
+        }
+
         override suspend fun update(item: SyncQueueItem) {
             val idx = items.indexOfFirst { it.localId == item.localId }
             if (idx >= 0) items[idx] = item

@@ -38,7 +38,8 @@ class MainApplication : Application() {
     val syncEngine by lazy {
         SyncEngine(
             syncQueueDao = localDataSource.syncQueueDao,
-            remoteDataSource = remoteDataSource
+            remoteDataSource = remoteDataSource,
+            localDataSource = localDataSource
         )
     }
     val syncManager by lazy { SyncManager(syncEngine) }
