@@ -57,7 +57,32 @@ class SyncEngine(
         // Mark all as IN_PROGRESS atomically before processing
         syncQueueDao.markInProgress(pendingItems.map { it.localId })
 
+        val syncOrder = listOf(
+            "CATEGORY",
+            "MENU",
+            "INGREDIENT",
+            "MENU_RECIPE",
+            "CUSTOMER",
+            "TRANSACTION",
+            "TRANSACTION_ITEM",
+            "PAYMENT",
+            "STOCK_MOVEMENT",
+            "PURCHASE_EXPENSE",
+            "PURCHASE_EXPENSE_ITEM",
+            "STOCK_OPNAME",
+            "STOCK_OPNAME_ITEM",
+            "WASTE_LOG",
+            "EXPENSE",
+            "LOYALTY_POINT_HISTORY",
+            "PROMOTION_RULE",
+            "CASH_SHIFT",
+            "DAILY_CLOSING"
+        )
         val grouped = pendingItems.groupBy { it.entityType }
+            .toList()
+            .sortedBy { (entityType, _) ->
+                syncOrder.indexOf(entityType).let { if (it == -1) 999 else it }
+            }
         var successCount = 0
         var failureCount = 0
 
