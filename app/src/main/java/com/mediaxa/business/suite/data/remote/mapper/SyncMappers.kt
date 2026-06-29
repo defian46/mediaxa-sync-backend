@@ -56,6 +56,7 @@ fun Payment.toDto() = PaymentDto(
     transactionUuid = transactionUuid,
     method = method,
     amount = amount,
+    changeAmount = 0.0,
     referenceNumber = null,
     updatedAt = updatedAt,
     isDeleted = isDeleted
