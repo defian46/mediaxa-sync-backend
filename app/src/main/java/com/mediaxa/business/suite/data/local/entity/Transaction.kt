@@ -38,9 +38,14 @@ data class Transaction(
     val paymentMethod: String,
     val amountReceived: Double,
     val changeAmount: Double,
-    val status: String = "PAID",
+    val status: String = TransactionStatus.COMPLETED.name,
     val customerUuid: String? = null,
     val pointsEarned: Int? = null,
     val pointsRedeemed: Int? = null,
     val notes: String? = null
 )
+
+enum class TransactionStatus {
+    COMPLETED,
+    VOIDED
+}

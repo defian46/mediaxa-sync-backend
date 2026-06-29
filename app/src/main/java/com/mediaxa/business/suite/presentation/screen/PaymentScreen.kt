@@ -120,6 +120,7 @@ fun PaymentScreen(
 
                             isProcessing = true
                             viewModel.checkout(
+                                context = context,
                                 cashierUuid = currentUser.uuid,
                                 cashierName = currentUser.username,
                                 paymentMethod = selectedMethod,

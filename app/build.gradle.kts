@@ -24,17 +24,18 @@ android {
 
     buildTypes {
         debug {
-            // Emulator loopback: 10.0.2.2 maps to localhost on the host machine
-            buildConfigField("String", "SYNC_BACKEND_URL", "\"http://10.0.2.2:3000/api/v1\"")
+            // Point to Render backend for real-device sync testing
+            buildConfigField("String", "SYNC_BACKEND_URL", "\"https://mediaxabusiness-suite.onrender.com/api/v1\"")
         }
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
             // Replace this with your actual Render backend URL before publishing
-            buildConfigField("String", "SYNC_BACKEND_URL", "\"https://mediaxa-sync-backend.onrender.com/api/v1\"")
+            buildConfigField("String", "SYNC_BACKEND_URL", "\"https://mediaxabusiness-suite.onrender.com/api/v1\"")
         }
     }
     testOptions {

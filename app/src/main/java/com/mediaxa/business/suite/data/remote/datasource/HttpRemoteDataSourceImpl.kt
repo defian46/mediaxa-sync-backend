@@ -25,9 +25,9 @@ private const val TAG = "HttpRemoteDataSource"
  * @param getToken   Lambda that returns the current access token (refreshed lazily)
  */
 class HttpRemoteDataSourceImpl(
-    private val storeUuid: String,
+    private val getStoreUuid: () -> String?,
     private val deviceId: String,
-    private val userUuid: String,
+    private val getUserUuid: () -> String?,
     private val getToken: () -> String?
 ) : RemoteDataSource {
 
@@ -43,6 +43,7 @@ class HttpRemoteDataSourceImpl(
         entityType: String,
         operation: String,
         items: List<T>,
+        extractUuid: (T) -> String,
         encodeItem: (T) -> String
     ): SyncResult = withContext(Dispatchers.IO) {
         val token = getToken() ?: return@withContext SyncResult.Unauthorized
@@ -52,7 +53,7 @@ class HttpRemoteDataSourceImpl(
         val mutations = items.mapIndexed { index, item ->
             com.mediaxa.business.suite.data.remote.ClientMutationDto(
                 clientMutationId = "push-${entityType}-${System.currentTimeMillis()}-$index",
-                uuid = "unknown", // UUID is embedded in the payload itself
+                uuid = extractUuid(item),
                 entityType = entityType,
                 operation = operation,
                 payload = encodeItem(item),
@@ -60,112 +61,120 @@ class HttpRemoteDataSourceImpl(
             )
         }
 
-        val response = NetworkClient.push(storeUuid, deviceId, userUuid, emptyList(), token)
-            .let {
-                // NetworkClient.push requires SyncQueueItem list; use raw HTTP call via
-                // a direct inline helper that can accept pre-built ClientMutationDto list
-                pushMutationsDirect(mutations, token)
-            }
-
-        return@withContext if (response != null) {
-            Log.d(TAG, "Push $entityType: ${response.syncedIds.size} synced, ${response.failedIds.size} failed")
-            SyncResult.Success(syncedCount = response.syncedIds.size, serverTimestamp = System.currentTimeMillis())
-        } else {
-            SyncResult.NetworkUnavailable
-        }
+        return@withContext pushMutationsDirect(mutations, token)
     }
 
     /** Direct HTTP push accepting pre-built [ClientMutationDto] list. */
     private suspend fun pushMutationsDirect(
         mutations: List<com.mediaxa.business.suite.data.remote.ClientMutationDto>,
         token: String
-    ): com.mediaxa.business.suite.data.remote.PushResponse? = withContext(Dispatchers.IO) {
+    ): SyncResult = withContext(Dispatchers.IO) {
         try {
             val url = java.net.URL("${NetworkClient.baseUrl}/sync/push")
             val conn = url.openConnection() as java.net.HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Authorization", "Bearer $token")
-            conn.connectTimeout = 7000
-            conn.readTimeout = 7000
+            conn.connectTimeout = 45000
+            conn.readTimeout = 45000
             conn.doOutput = true
 
+            val currentStoreUuid = getStoreUuid() ?: "unknown"
+            val currentUserUuid = getUserUuid() ?: "unknown"
             val body = json.encodeToString(
-                com.mediaxa.business.suite.data.remote.PushRequest(storeUuid, deviceId, userUuid, mutations)
+                com.mediaxa.business.suite.data.remote.PushRequest(currentStoreUuid, deviceId, currentUserUuid, mutations)
             )
             java.io.OutputStreamWriter(conn.outputStream).use { it.write(body); it.flush() }
 
-            if (conn.responseCode == 200) {
+            val code = conn.responseCode
+            if (code == 200) {
                 val text = conn.inputStream.bufferedReader().use { it.readText() }
-                json.decodeFromString<com.mediaxa.business.suite.data.remote.PushResponse>(text)
+                val response = json.decodeFromString<com.mediaxa.business.suite.data.remote.PushResponse>(text)
+                if (response.failedIds.isNotEmpty()) {
+                    val firstErr = response.failedIds.first()
+                    SyncResult.Failure(
+                        errorMsg = "Mutation failed: ${firstErr.error}",
+                        httpCode = 200,
+                        isRetryable = false
+                    )
+                } else {
+                    SyncResult.Success(syncedCount = response.syncedIds.size, serverTimestamp = System.currentTimeMillis())
+                }
+            } else if (code == 401 || code == 403) {
+                SyncResult.Unauthorized
             } else {
-                Log.e(TAG, "Push HTTP error: ${conn.responseCode}")
-                null
+                val errText = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch(e: Exception) { null }
+                val errMsg = "HTTP $code: ${errText ?: conn.responseMessage}"
+                Log.e(TAG, "Push failed: $errMsg")
+                SyncResult.Failure(errorMsg = errMsg, httpCode = code, isRetryable = code >= 500)
             }
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "pushMutationsDirect network error", e)
+            SyncResult.NetworkUnavailable
         } catch (e: Exception) {
-            Log.e(TAG, "pushMutationsDirect error", e)
-            null
+            Log.e(TAG, "pushMutationsDirect unexpected error", e)
+            SyncResult.Failure(errorMsg = e.message ?: "Unknown push error", isRetryable = false)
         }
     }
 
     // ─── RemoteDataSource implementation ─────────────────────────────────────
 
     override suspend fun syncTransactions(payload: List<TransactionDto>) =
-        pushEntities("TRANSACTION", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("TRANSACTION", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncTransactionItems(payload: List<TransactionItemDto>) =
-        pushEntities("TRANSACTION_ITEM", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("TRANSACTION_ITEM", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncPayments(payload: List<PaymentDto>) =
-        pushEntities("PAYMENT", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("PAYMENT", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncCustomers(payload: List<CustomerDto>) =
-        pushEntities("CUSTOMER", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("CUSTOMER", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncLoyaltyPointHistory(payload: List<LoyaltyPointHistoryDto>) =
-        pushEntities("LOYALTY_POINT_HISTORY", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("LOYALTY_POINT_HISTORY", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncMenus(payload: List<MenuDto>) =
-        pushEntities("MENU", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("MENU", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncCategories(payload: List<CategoryDto>) =
-        pushEntities("CATEGORY", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("CATEGORY", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncIngredients(payload: List<IngredientDto>) =
-        pushEntities("INGREDIENT", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("INGREDIENT", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncMenuRecipes(payload: List<MenuRecipeDto>) =
-        pushEntities("MENU_RECIPE", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("MENU_RECIPE", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncStockMovements(payload: List<StockMovementDto>) =
-        pushEntities("STOCK_MOVEMENT", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("STOCK_MOVEMENT", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncPurchaseExpenses(payload: List<PurchaseExpenseDto>) =
-        pushEntities("PURCHASE_EXPENSE", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("PURCHASE_EXPENSE", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncPurchaseExpenseItems(payload: List<PurchaseExpenseItemDto>) =
-        pushEntities("PURCHASE_EXPENSE_ITEM", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("PURCHASE_EXPENSE_ITEM", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncStockOpnames(payload: List<StockOpnameDto>) =
-        pushEntities("STOCK_OPNAME", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("STOCK_OPNAME", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncStockOpnameItems(payload: List<StockOpnameItemDto>) =
-        pushEntities("STOCK_OPNAME_ITEM", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("STOCK_OPNAME_ITEM", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncExpenses(payload: List<ExpenseDto>) =
-        pushEntities("EXPENSE", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("EXPENSE", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncWasteLogs(payload: List<WasteLogDto>) =
-        pushEntities("WASTE_LOG", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("WASTE_LOG", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncCashShifts(payload: List<CashShiftDto>) =
-        pushEntities("CASH_SHIFT", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("CASH_SHIFT", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncDailyClosings(payload: List<DailyClosingDto>) =
-        pushEntities("DAILY_CLOSING", "CREATE", payload) { json.encodeToString(it) }
-
+        pushEntities("DAILY_CLOSING", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
+ 
     override suspend fun syncPromotionRules(payload: List<PromotionRuleDto>) =
-        pushEntities("PROMOTION_RULE", "CREATE", payload) { json.encodeToString(it) }
+        pushEntities("PROMOTION_RULE", "CREATE", payload, { it.uuid }) { json.encodeToString(it) }
 
     // Dashboard snapshots are fire-and-forget — best effort
     override suspend fun pushSalesDashboard(payload: SalesDashboardPayload) = SyncResult.Success()

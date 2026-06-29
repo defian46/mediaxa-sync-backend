@@ -79,6 +79,7 @@ fun AppNavigation(
 
     val syncMonitorViewModel: SyncMonitorViewModel = viewModel(
         factory = SyncMonitorViewModel.Factory(
+            context = context,
             localDataSource = context.localDataSource,
             syncEngine = context.syncEngine
         )
@@ -109,7 +110,7 @@ fun AppNavigation(
                 viewModel = authViewModel,
                 onLoginSuccess = { user ->
                     val dest = when (user.role) {
-                        "ADMIN" -> NavRoute.AdminDashboard.route
+                        "ADMIN", "ADMINISTRATOR" -> NavRoute.AdminDashboard.route
                         "CASHIER" -> NavRoute.CashierDashboard.route
                         "SUPERVISOR" -> NavRoute.SupervisorDashboard.route
                         else -> NavRoute.Login.route

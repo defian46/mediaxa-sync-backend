@@ -27,11 +27,18 @@ class CustomerLoyaltyPromotionTest {
     private lateinit var stockMovementDao: StockMovementDao
     private lateinit var menuRecipeDao: MenuRecipeDao
     private lateinit var auditLogDao: AuditLogDao
+    private lateinit var syncQueueDao: SyncQueueDao
 
     private lateinit var checkoutService: CheckoutService
 
     private class TestTransactionRunner : TransactionRunner {
         override suspend fun <R> run(block: suspend () -> R): R = block()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> anyNonNull(): T {
+        Mockito.any<Any>()
+        return null as T
     }
 
     @Before
@@ -49,6 +56,7 @@ class CustomerLoyaltyPromotionTest {
         stockMovementDao = Mockito.mock(StockMovementDao::class.java)
         menuRecipeDao = Mockito.mock(MenuRecipeDao::class.java)
         auditLogDao = Mockito.mock(AuditLogDao::class.java)
+        syncQueueDao = Mockito.mock(SyncQueueDao::class.java)
 
         // Bind mock DAOs to localDataSource getters
         Mockito.`when`(localDataSource.storeSettingDao).thenReturn(storeSettingDao)
@@ -61,6 +69,7 @@ class CustomerLoyaltyPromotionTest {
         Mockito.`when`(localDataSource.stockMovementDao).thenReturn(stockMovementDao)
         Mockito.`when`(localDataSource.menuRecipeDao).thenReturn(menuRecipeDao)
         Mockito.`when`(localDataSource.auditLogDao).thenReturn(auditLogDao)
+        Mockito.`when`(localDataSource.syncQueueDao).thenReturn(syncQueueDao)
 
         checkoutService = CheckoutService(database, localDataSource, TestTransactionRunner())
 
@@ -75,9 +84,11 @@ class CustomerLoyaltyPromotionTest {
         )
         runBlocking {
             Mockito.`when`(storeSettingDao.getSettings()).thenReturn(defaultSettings)
-            Mockito.`when`(menuRecipeDao.getRecipesForMenus(Mockito.anyList() ?: emptyList())).thenReturn(emptyList())
-            Mockito.`when`(ingredientDao.getIngredientsByUuids(Mockito.anyList() ?: emptyList())).thenReturn(emptyList())
+            Mockito.`when`(menuRecipeDao.getRecipesForMenus(anyNonNull())).thenReturn(emptyList())
+            Mockito.`when`(ingredientDao.getIngredientsByUuids(anyNonNull())).thenReturn(emptyList())
             Mockito.`when`(transactionDao.getTransactionCount()).thenReturn(0)
+            Mockito.`when`(syncQueueDao.enqueue(anyNonNull())).thenReturn(1L)
+            Mockito.`when`(syncQueueDao.getPendingItems(Mockito.anyLong(), Mockito.anyInt())).thenReturn(emptyList())
         }
     }
 
@@ -106,6 +117,7 @@ class CustomerLoyaltyPromotionTest {
 
         val res = try {
             checkoutService.executeCheckout(
+                context = Mockito.mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "user-1",
@@ -156,6 +168,7 @@ class CustomerLoyaltyPromotionTest {
 
         val res = try {
             checkoutService.executeCheckout(
+                context = Mockito.mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "user-1",
@@ -205,6 +218,7 @@ class CustomerLoyaltyPromotionTest {
 
         val res = try {
             checkoutService.executeCheckout(
+                context = Mockito.mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "user-1",

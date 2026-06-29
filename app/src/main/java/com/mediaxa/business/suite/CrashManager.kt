@@ -85,6 +85,26 @@ object CrashManager {
         } catch (_: Exception) {}
     }
 
+    fun logException(context: Context, throwable: Throwable) {
+        val sw = StringWriter()
+        throwable.printStackTrace(PrintWriter(sw))
+        val stackTrace = sw.toString()
+        
+        val logMessage = """
+            Timestamp: ${System.currentTimeMillis()}
+            Type: LOGGED_EXCEPTION
+            Stacktrace:
+            $stackTrace
+            ========================================
+            
+        """.trimIndent()
+
+        saveCrashLocal(context, logMessage)
+        
+        val backendUrl = com.mediaxa.business.suite.data.remote.NetworkClient.baseUrl + "/crashes"
+        uploadCrashSync(backendUrl, logMessage)
+    }
+
     private fun escapeJsonString(input: String): String {
         return input.replace("\\", "\\\\")
             .replace("\"", "\\\"")

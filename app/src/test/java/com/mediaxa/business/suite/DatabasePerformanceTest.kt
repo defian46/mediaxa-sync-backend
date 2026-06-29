@@ -30,7 +30,7 @@ class DatabasePerformanceTest {
                     paymentMethod = "CASH",
                     amountReceived = 50000.0,
                     changeAmount = if (i % 5 == 0) 5000.0 else 0.0,
-                    status = "PAID",
+                    status = "COMPLETED",
                     updatedAt = now
                 )
             )

@@ -223,6 +223,7 @@ class PosViewModel(
     }
 
     fun checkout(
+        context: android.content.Context,
         cashierUuid: String,
         cashierName: String,
         paymentMethod: String,
@@ -231,6 +232,7 @@ class PosViewModel(
     ) {
         viewModelScope.launch {
             val result = checkoutService.executeCheckout(
+                context = context,
                 cart = _cartItems.value,
                 discount = _discountAmount.value,
                 cashierUuid = cashierUuid,

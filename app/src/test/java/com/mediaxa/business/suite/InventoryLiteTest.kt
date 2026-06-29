@@ -50,6 +50,14 @@ private class FakeStockMovementDao : StockMovementDao {
         return movements.size.toLong()
     }
     
+    override suspend fun getMovementCount(): Int {
+        return movements.size
+    }
+
+    override suspend fun getStockMovementByUuid(uuid: String): StockMovement? {
+        return movements.find { it.uuid == uuid }
+    }
+
     override fun getAllStockMovementsFlow(): kotlinx.coroutines.flow.Flow<List<StockMovement>> = TODO()
     override fun getStockMovementsByIngredientFlow(ingredientUuid: String): kotlinx.coroutines.flow.Flow<List<StockMovement>> = TODO()
     override suspend fun getUnsyncedStockMovements(): List<StockMovement> = TODO()

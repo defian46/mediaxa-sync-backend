@@ -1,9 +1,16 @@
 package com.mediaxa.business.suite.data.repository
 
+import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import com.mediaxa.business.suite.data.local.database.AppDatabase
 import com.mediaxa.business.suite.data.local.datasource.LocalDataSource
 import com.mediaxa.business.suite.data.local.entity.*
+import com.mediaxa.business.suite.data.remote.dto.TransactionDto
+import com.mediaxa.business.suite.data.remote.dto.TransactionItemDto
+import com.mediaxa.business.suite.data.remote.dto.PaymentDto
+import com.mediaxa.business.suite.data.remote.dto.StockMovementDto
+import com.mediaxa.business.suite.data.remote.mapper.toDto
 import com.mediaxa.business.suite.domain.model.CartItem
 import java.text.SimpleDateFormat
 import java.util.*
@@ -93,6 +100,7 @@ class CheckoutService(
     }
 
     suspend fun executeCheckout(
+        context: Context,
         cart: List<CartItem>,
         discount: Double,
         cashierUuid: String,
@@ -294,7 +302,7 @@ class CheckoutService(
                     paymentMethod = paymentMethod,
                     amountReceived = if (paymentMethod == "CASH") amountReceived else total,
                     changeAmount = change,
-                    status = "PAID",
+                    status = TransactionStatus.COMPLETED.name,
                     customerUuid = customerUuid,
                     pointsEarned = if (pointsEarned > 0) pointsEarned else null,
                     pointsRedeemed = if (ptsRedeemed > 0) ptsRedeemed else null,
@@ -343,6 +351,17 @@ class CheckoutService(
                             syncStatus = SyncStatus.PENDING_CREATE.name
                         )
                         localDataSource.stockMovementDao.insertMovement(movement)
+
+                        // Enqueue StockMovement sync item
+                        enqueueSyncItem(
+                            entityUuid = movement.uuid,
+                            entityType = SyncEntityType.STOCK_MOVEMENT,
+                            operation = SyncOperation.CREATE,
+                            payloadDto = movement.toDto(),
+                            storeId = storeId,
+                            deviceId = deviceId,
+                            serializer = StockMovementDto.serializer()
+                        )
                     }
                 }
 
@@ -382,10 +401,103 @@ class CheckoutService(
                 )
                 localDataSource.auditLogDao.insertLog(auditLog)
 
+                // 5. Enqueue Transaction, Items, and Payment sync items
+                enqueueSyncItem(
+                    entityUuid = transaction.uuid,
+                    entityType = SyncEntityType.TRANSACTION,
+                    operation = SyncOperation.CREATE,
+                    payloadDto = transaction.toDto(),
+                    storeId = storeId,
+                    deviceId = deviceId,
+                    serializer = TransactionDto.serializer()
+                )
+
+                txItems.forEach { item ->
+                    enqueueSyncItem(
+                        entityUuid = item.uuid,
+                        entityType = SyncEntityType.TRANSACTION_ITEM,
+                        operation = SyncOperation.CREATE,
+                        payloadDto = item.toDto(),
+                        storeId = storeId,
+                        deviceId = deviceId,
+                        serializer = TransactionItemDto.serializer()
+                    )
+                }
+
+                enqueueSyncItem(
+                    entityUuid = payment.uuid,
+                    entityType = SyncEntityType.PAYMENT,
+                    operation = SyncOperation.CREATE,
+                    payloadDto = payment.toDto(),
+                    storeId = storeId,
+                    deviceId = deviceId,
+                    serializer = PaymentDto.serializer()
+                )
+
+                // 6. Verify and Log SyncQueue details
+                val pendingQueue = localDataSource.syncQueueDao.getPendingItems(System.currentTimeMillis() + 10_000, 100)
+                val txPending = pendingQueue.filter { it.entityType == SyncEntityType.TRANSACTION.name && it.uuid == transaction.uuid }
+                val hasTx = txPending.isNotEmpty()
+                val pendingCount = pendingQueue.count { it.status == SyncQueueStatus.PENDING.name }
+                
+                Log.d("CheckoutSyncAudit", "=== SyncQueue Audit ===")
+                Log.d("CheckoutSyncAudit", "Jumlah SyncQueue PENDING: $pendingCount")
+                Log.d("CheckoutSyncAudit", "entityType TRANSACTION ada: $hasTx")
+                
+                txPending.forEach { item ->
+                    val hasMutationId = item.localId > 0
+                    Log.d("CheckoutSyncAudit", "clientMutationId ada: $hasMutationId (localId: ${item.localId})")
+                    
+                    var isPayloadValid = false
+                    try {
+                        json.decodeFromString<TransactionDto>(item.payload)
+                        isPayloadValid = true
+                    } catch (e: Exception) {
+                        Log.e("CheckoutSyncAudit", "Payload invalid for uuid=${item.uuid}", e)
+                    }
+                    Log.d("CheckoutSyncAudit", "payload valid: $isPayloadValid")
+                }
+                Log.d("CheckoutSyncAudit", "=======================")
+
+                lastCheckoutError = ""
                 CheckoutResult.Success(txUuid)
             }
         } catch (e: Exception) {
-            CheckoutResult.Failure("Transaksi gagal: ${e.message}")
+            e.printStackTrace()
+            lastCheckoutError = e.message ?: e.toString()
+            try {
+                com.mediaxa.business.suite.CrashManager.logException(context, e)
+            } catch (ex: Throwable) {
+                // Ignore Android log/context mocking issues in unit tests
+            }
+            CheckoutResult.Failure("System error during checkout: ${e.message}")
         }
+    }
+
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true }
+
+    private suspend fun <T> enqueueSyncItem(
+        entityUuid: String,
+        entityType: SyncEntityType,
+        operation: SyncOperation,
+        payloadDto: T,
+        storeId: Long,
+        deviceId: String,
+        serializer: kotlinx.serialization.KSerializer<T>
+    ) {
+        val payloadJson = json.encodeToString(serializer, payloadDto)
+        val syncItem = SyncQueueItem(
+            uuid = entityUuid,
+            storeId = storeId,
+            deviceId = deviceId,
+            entityType = entityType.name,
+            operation = operation.name,
+            payload = payloadJson
+        )
+        localDataSource.syncQueueDao.enqueue(syncItem)
+    }
+
+    companion object {
+        var lastCheckoutError: String = ""
     }
 }

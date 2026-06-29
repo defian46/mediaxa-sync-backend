@@ -209,7 +209,7 @@ fun TransactionItemCard(
                     Box(
                         modifier = Modifier
                             .background(
-                                color = if (transaction.status == "VOID") Color(0xFFFDE8E8) else Color(0xFFE1F8EB),
+                                color = if (transaction.status == "VOIDED") Color(0xFFFDE8E8) else Color(0xFFE1F8EB),
                                 shape = RoundedCornerShape(4.dp)
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -218,7 +218,7 @@ fun TransactionItemCard(
                             text = transaction.status,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (transaction.status == "VOID") Color(0xFF9B1C1C) else Color(0xFF03543F)
+                            color = if (transaction.status == "VOIDED") Color(0xFF9B1C1C) else Color(0xFF03543F)
                         )
                     }
                 }

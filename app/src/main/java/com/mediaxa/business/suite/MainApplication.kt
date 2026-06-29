@@ -27,9 +27,9 @@ class MainApplication : Application() {
     // ─── Remote — Live HTTP via NetworkClient ─────────────────────────────────
     val remoteDataSource by lazy {
         HttpRemoteDataSourceImpl(
-            storeUuid = PreferenceHelper.getStoreUuid(this) ?: "unknown",
+            getStoreUuid = { PreferenceHelper.getStoreUuid(this) },
             deviceId = deviceId,
-            userUuid = PreferenceHelper.getUserUuid(this) ?: "unknown",
+            getUserUuid = { PreferenceHelper.getUserUuid(this) },
             getToken = { PreferenceHelper.getAccessToken(this) }
         )
     }

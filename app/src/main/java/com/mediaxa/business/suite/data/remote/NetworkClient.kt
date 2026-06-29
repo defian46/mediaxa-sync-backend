@@ -2,6 +2,7 @@ package com.mediaxa.business.suite.data.remote
 
 import android.util.Log
 import com.mediaxa.business.suite.data.local.entity.SyncQueueItem
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -22,7 +23,7 @@ data class LoginRequest(
 
 @Serializable
 data class UserResponse(
-    val uuid: String,
+    @SerialName("userUuid") val uuid: String,
     val storeUuid: String,
     val username: String,
     val role: String
@@ -54,11 +55,17 @@ data class PushRequest(
 )
 
 @Serializable
+data class FailedMutationDto(
+    val clientMutationId: String,
+    val error: String
+)
+
+@Serializable
 data class PushResponse(
     val status: String,
     val syncedIds: List<String>,
     val conflicts: List<ConflictDto> = emptyList(),
-    val failedIds: List<String> = emptyList()
+    val failedIds: List<FailedMutationDto> = emptyList()
 )
 
 @Serializable
@@ -220,16 +227,19 @@ object NetworkClient {
         }
     }
 
+    var lastLoginError: String? = null
+
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; encodeDefaults = true }
 
     fun login(username: String, passwordRaw: String, deviceId: String): LoginResponse? {
+        lastLoginError = null
         try {
             val url = URL("$baseUrl/auth/login")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
+            conn.connectTimeout = 45000
+            conn.readTimeout = 45000
             conn.doOutput = true
 
             val body = json.encodeToString(LoginRequest(username, passwordRaw, deviceId))
@@ -239,9 +249,12 @@ object NetworkClient {
                 val responseText = conn.inputStream.bufferedReader().use(BufferedReader::readText)
                 return json.decodeFromString<LoginResponse>(responseText)
             } else {
-                Log.e(TAG, "Login failed with code: ${conn.responseCode}")
+                val errText = try { conn.errorStream?.bufferedReader()?.use(BufferedReader::readText) } catch(e: Exception) { null }
+                lastLoginError = "HTTP ${conn.responseCode}: ${errText ?: conn.responseMessage}"
+                Log.e(TAG, "Login failed with code: ${conn.responseCode}, response: $errText")
             }
         } catch (e: Exception) {
+            lastLoginError = "Exception: ${e.message}"
             Log.e(TAG, "Login network connection error", e)
         }
         return null
@@ -260,8 +273,8 @@ object NetworkClient {
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
-            conn.connectTimeout = 7000
-            conn.readTimeout = 7000
+            conn.connectTimeout = 45000
+            conn.readTimeout = 45000
             conn.doOutput = true
 
             val dtoList = mutations.map {
@@ -300,8 +313,8 @@ object NetworkClient {
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.setRequestProperty("Authorization", "Bearer $accessToken")
-            conn.connectTimeout = 7000
-            conn.readTimeout = 7000
+            conn.connectTimeout = 45000
+            conn.readTimeout = 45000
 
             if (conn.responseCode == 200) {
                 val responseText = conn.inputStream.bufferedReader().use(BufferedReader::readText)

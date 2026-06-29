@@ -15,7 +15,7 @@ interface SalesSummaryDao {
             COALESCE(AVG(total), 0.0) AS averageTicketValue
         FROM transactions 
         WHERE storeId = :storeId 
-          AND status = 'PAID' 
+          AND status = 'COMPLETED' 
           AND isDeleted = 0
           AND createdAt >= :startDate 
           AND createdAt <= :endDate
@@ -79,7 +79,7 @@ interface SalesSummaryDao {
             AVG(total) AS averageTicketValue
         FROM transactions
         WHERE storeId = :storeId
-          AND status = 'PAID'
+          AND status = 'COMPLETED'
           AND isDeleted = 0
           AND createdAt >= :startDate
           AND createdAt <= :endDate
@@ -110,7 +110,7 @@ interface SalesSummaryDao {
             SUM(total) AS totalAmount
         FROM transactions
         WHERE storeId = :storeId 
-          AND status = 'PAID'
+          AND status = 'COMPLETED'
           AND isDeleted = 0
           AND createdAt >= :startDate 
           AND createdAt <= :endDate

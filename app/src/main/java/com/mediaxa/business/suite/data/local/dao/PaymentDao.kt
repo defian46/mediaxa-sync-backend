@@ -17,4 +17,7 @@ interface PaymentDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayments(payments: List<Payment>)
+
+    @Query("SELECT COUNT(*) FROM payments WHERE isDeleted = 0")
+    suspend fun getPaymentCount(): Int
 }

@@ -123,6 +123,12 @@ fun SyncMonitorScreen(
                     SyncEmptyState(uiState.lastSyncedAt)
                 }
             }
+
+            // ── Diagnostics Section (Requirement 8) ───────────────────────────
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                DiagnosticsCard(uiState)
+            }
         }
     }
 }
@@ -412,4 +418,90 @@ private fun SyncEmptyState(lastSyncedAt: Long?) {
 
 private fun formatTimestamp(millis: Long): String {
     return SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("id", "ID")).format(Date(millis))
+}
+
+@Composable
+private fun DiagnosticsCard(state: SyncMonitorUiState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Diagnostics & Debug Info",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            
+            DiagnosticRow("Store UUID", state.currentStoreUuid)
+            DiagnosticRow("User UUID", state.currentUserUuid)
+            DiagnosticRow("Base URL", state.backendBaseUrl)
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            
+            DiagnosticRow("Local Transactions", state.localTransactionsCount.toString())
+            DiagnosticRow("Local Items Sold", state.localTransactionItemsCount.toString())
+            DiagnosticRow("Local Payments", state.localPaymentsCount.toString())
+            DiagnosticRow("Local Stock Movements", state.localStockMovementsCount.toString())
+            DiagnosticRow("Pending Sync Queue", state.pendingCount.toString())
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            
+            Text(
+                text = "Last Checkout Error:",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = state.lastCheckoutError ?: "None",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (state.lastCheckoutError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Last Login Error:",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = state.lastLoginError ?: "None",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (state.lastLoginError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
 }

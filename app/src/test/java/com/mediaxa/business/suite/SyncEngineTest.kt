@@ -108,7 +108,7 @@ class SyncEngineTest {
             discount = 0.0, subtotal = 50000.0, total = 50000.0,
             transactionHpp = 20000.0, grossProfit = 30000.0,
             paymentMethod = "CASH", amountReceived = 50000.0, changeAmount = 0.0,
-            status = "PAID", updatedAt = System.currentTimeMillis()
+            status = "COMPLETED", updatedAt = System.currentTimeMillis()
         )
         return Json.encodeToString(dto)
     }

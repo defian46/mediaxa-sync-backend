@@ -160,6 +160,7 @@ class PullSyncManager(
                     cashierUuid = dto.cashierUserUuid,
                     cashierName = dto.cashierUserUuid,
                     transactionNumber = "SYNC-${dto.uuid.takeLast(8).uppercase()}",
+                    createdAt = NetworkClient.parseIsoDateTime(dto.transactionDate),
                     timestamp = NetworkClient.parseIsoDateTime(dto.transactionDate),
                     subtotal = dto.subtotal,
                     total = dto.total,

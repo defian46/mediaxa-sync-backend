@@ -55,7 +55,7 @@ class AccountSecurityAndPaymentTest {
         
         `when`(userRepository.getAllUsersFlow()).thenReturn(flowOf(listOf(adminUser, cashierUser)))
         
-        authViewModel = AuthViewModel(userRepository, auditLogDao)
+        authViewModel = AuthViewModel(userRepository, auditLogDao, mock(android.content.Context::class.java))
     }
 
     @After

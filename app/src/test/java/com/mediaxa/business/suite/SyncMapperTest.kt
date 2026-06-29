@@ -30,7 +30,7 @@ class SyncMapperTest {
             paymentMethod = "CASH",
             amountReceived = 100000.0,
             changeAmount = 5000.0,
-            status = "PAID",
+            status = "COMPLETED",
             customerUuid = "cust-1",
             pointsEarned = 9,
             pointsRedeemed = 0

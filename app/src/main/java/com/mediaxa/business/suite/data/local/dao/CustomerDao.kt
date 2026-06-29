@@ -52,7 +52,7 @@ interface CustomerDao {
         FROM transactions 
         WHERE storeId = :storeId 
           AND isDeleted = 0 
-          AND status = 'PAID'
+          AND status = 'COMPLETED'
           AND customerUuid IS NOT NULL
           AND createdAt >= :startDate
     """)

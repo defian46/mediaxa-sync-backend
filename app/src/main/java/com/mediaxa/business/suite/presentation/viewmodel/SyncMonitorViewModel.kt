@@ -17,16 +17,28 @@ data class SyncMonitorUiState(
     val failedItems: List<SyncQueueItem> = emptyList(),
     val pendingItems: List<SyncQueueItem> = emptyList(),
     val isSyncing: Boolean = false,
-    val syncMessage: String? = null
+    val syncMessage: String? = null,
+    val localTransactionsCount: Int = 0,
+    val localTransactionItemsCount: Int = 0,
+    val localPaymentsCount: Int = 0,
+    val localStockMovementsCount: Int = 0,
+    val currentStoreUuid: String = "unknown",
+    val currentUserUuid: String = "unknown",
+    val backendBaseUrl: String = "unknown",
+    val lastCheckoutError: String? = null,
+    val lastLoginError: String? = null
 )
 
 class SyncMonitorViewModel(
+    private val context: android.content.Context,
     private val localDataSource: LocalDataSource,
     private val syncEngine: SyncEngine
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SyncMonitorUiState())
     val uiState: StateFlow<SyncMonitorUiState> = _uiState.asStateFlow()
+
+    private val appContext = context.applicationContext
 
     init {
         observeQueueState()
@@ -52,13 +64,32 @@ class SyncMonitorViewModel(
                     isSyncing = _uiState.value.isSyncing
                 )
             }.collect { state ->
+                val txCount = localDataSource.transactionDao.getTransactionCount()
+                val tiCount = localDataSource.transactionItemDao.getTransactionItemCount()
+                val pmCount = localDataSource.paymentDao.getPaymentCount()
+                val smCount = localDataSource.stockMovementDao.getMovementCount()
+                val storeUuid = com.mediaxa.business.suite.data.local.PreferenceHelper.getStoreUuid(appContext) ?: "unknown"
+                val userUuid = com.mediaxa.business.suite.data.local.PreferenceHelper.getUserUuid(appContext) ?: "unknown"
+                val baseUrl = com.mediaxa.business.suite.data.remote.NetworkClient.baseUrl
+                val lastErr = com.mediaxa.business.suite.data.repository.CheckoutService.lastCheckoutError
+                val lastLoginErr = com.mediaxa.business.suite.data.remote.NetworkClient.lastLoginError
+
                 _uiState.update { it.copy(
                     pendingCount = state.pendingCount,
                     failedCount = state.failedCount,
                     totalQueueSize = state.totalQueueSize,
                     lastSyncedAt = state.lastSyncedAt,
                     failedItems = state.failedItems,
-                    pendingItems = state.pendingItems
+                    pendingItems = state.pendingItems,
+                    localTransactionsCount = txCount,
+                    localTransactionItemsCount = tiCount,
+                    localPaymentsCount = pmCount,
+                    localStockMovementsCount = smCount,
+                    currentStoreUuid = storeUuid,
+                    currentUserUuid = userUuid,
+                    backendBaseUrl = baseUrl,
+                    lastCheckoutError = lastErr,
+                    lastLoginError = lastLoginErr
                 ) }
             }
         }
@@ -98,12 +129,13 @@ class SyncMonitorViewModel(
     }
 
     class Factory(
+        private val context: android.content.Context,
         private val localDataSource: LocalDataSource,
         private val syncEngine: SyncEngine
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SyncMonitorViewModel(localDataSource, syncEngine) as T
+            return SyncMonitorViewModel(context, localDataSource, syncEngine) as T
         }
     }
 }

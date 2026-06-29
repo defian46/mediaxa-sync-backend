@@ -2,6 +2,7 @@ package com.mediaxa.business.suite.data.repository
 
 import com.mediaxa.business.suite.data.local.datasource.LocalDataSource
 import com.mediaxa.business.suite.data.local.entity.Transaction
+import com.mediaxa.business.suite.data.local.entity.TransactionStatus
 import com.mediaxa.business.suite.data.local.entity.TransactionItem
 import com.mediaxa.business.suite.data.local.entity.Payment
 import com.mediaxa.business.suite.data.local.entity.VoidLog
@@ -34,7 +35,7 @@ class TransactionRepository(private val localDataSource: LocalDataSource) {
         val tx = localDataSource.transactionDao.getTransactionByUuid(transactionUuid)
         if (tx != null) {
             val updatedTx = tx.copy(
-                status = "VOID",
+                status = TransactionStatus.VOIDED.name,
                 updatedAt = System.currentTimeMillis(),
                 syncStatus = SyncStatus.PENDING_UPDATE.name
             )

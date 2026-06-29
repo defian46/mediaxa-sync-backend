@@ -20,4 +20,7 @@ interface TransactionItemDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransactionItems(items: List<TransactionItem>)
+
+    @Query("SELECT COUNT(*) FROM transaction_items WHERE isDeleted = 0")
+    suspend fun getTransactionItemCount(): Int
 }

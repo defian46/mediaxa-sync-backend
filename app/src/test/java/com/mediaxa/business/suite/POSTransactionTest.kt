@@ -35,6 +35,7 @@ class POSTransactionTest {
     private lateinit var stockMovementDao: StockMovementDao
     private lateinit var storeSettingDao: StoreSettingDao
     private lateinit var auditLogDao: AuditLogDao
+    private lateinit var syncQueueDao: SyncQueueDao
 
     private lateinit var checkoutService: CheckoutService
 
@@ -94,6 +95,7 @@ class POSTransactionTest {
         stockMovementDao = mock(StockMovementDao::class.java)
         storeSettingDao = mock(StoreSettingDao::class.java)
         auditLogDao = mock(AuditLogDao::class.java)
+        syncQueueDao = mock(SyncQueueDao::class.java)
 
         // Mock localDataSource DAOs
         `when`(localDataSource.menuDao).thenReturn(menuDao)
@@ -106,15 +108,19 @@ class POSTransactionTest {
         `when`(localDataSource.stockMovementDao).thenReturn(stockMovementDao)
         `when`(localDataSource.storeSettingDao).thenReturn(storeSettingDao)
         `when`(localDataSource.auditLogDao).thenReturn(auditLogDao)
+        `when`(localDataSource.syncQueueDao).thenReturn(syncQueueDao)
 
         // Stub DAO write methods to prevent NPEs in Kotlin suspend functions returning boxed types or Unit
         runBlocking {
             `when`(transactionDao.insertTransaction(anyNonNull())).thenReturn(1L)
+            `when`(transactionDao.getTransactionCount()).thenReturn(0)
             `when`(transactionItemDao.insertTransactionItems(anyNonNull())).thenReturn(Unit)
             `when`(paymentDao.insertPayments(anyNonNull())).thenReturn(Unit)
             `when`(ingredientDao.adjustStock(anyNonNull(), anyDouble(), anyLong(), anyNonNull())).thenReturn(Unit)
             `when`(stockMovementDao.insertMovement(anyNonNull())).thenReturn(1L)
             `when`(auditLogDao.insertLog(anyNonNull())).thenReturn(1L)
+            `when`(syncQueueDao.enqueue(anyNonNull())).thenReturn(1L)
+            `when`(syncQueueDao.getPendingItems(anyLong(), anyInt())).thenReturn(emptyList())
         }
 
         checkoutService = CheckoutService(database, localDataSource, POSTransactionFakeTransactionRunner())
@@ -252,6 +258,7 @@ class POSTransactionTest {
             `when`(transactionDao.getTransactionCount()).thenReturn(0)
 
             val result = checkoutService.executeCheckout(
+                context = mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "usr-01",
@@ -288,6 +295,7 @@ class POSTransactionTest {
             `when`(transactionDao.getTransactionCount()).thenReturn(10)
 
             val result = checkoutService.executeCheckout(
+                context = mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "usr-01",
@@ -319,6 +327,7 @@ class POSTransactionTest {
             `when`(transactionDao.insertTransaction(anyNonNull())).thenThrow(RuntimeException("DB Lock error"))
 
             val result = checkoutService.executeCheckout(
+                context = mock(android.content.Context::class.java),
                 cart = cart,
                 discount = 0.0,
                 cashierUuid = "usr-01",

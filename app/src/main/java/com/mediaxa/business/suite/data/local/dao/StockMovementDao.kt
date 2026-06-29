@@ -20,4 +20,7 @@ interface StockMovementDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMovement(movement: StockMovement): Long
+
+    @Query("SELECT COUNT(*) FROM stock_movements WHERE isDeleted = 0")
+    suspend fun getMovementCount(): Int
 }

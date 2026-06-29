@@ -16,7 +16,7 @@ interface FinanceDao {
             COALESCE(SUM(transactionHpp), 0.0) AS totalHpp
         FROM transactions
         WHERE storeId = :storeId 
-          AND status = 'SUCCESS' 
+          AND status = 'COMPLETED' 
           AND createdAt >= :startDate 
           AND createdAt <= :endDate
     """)
@@ -50,7 +50,7 @@ interface FinanceDao {
             COALESCE(SUM(total), 0.0) AS amount
         FROM transactions
         WHERE storeId = :storeId 
-          AND status = 'SUCCESS' 
+          AND status = 'COMPLETED' 
           AND createdAt >= :startDate 
           AND createdAt <= :endDate
         GROUP BY paymentMethod
@@ -91,7 +91,7 @@ interface FinanceDao {
             COALESCE(SUM(transactionHpp), 0.0) AS dailyHpp
         FROM transactions
         WHERE storeId = :storeId 
-          AND status = 'SUCCESS' 
+          AND status = 'COMPLETED' 
           AND createdAt >= :startDate 
           AND createdAt <= :endDate
         GROUP BY dateStr
@@ -129,7 +129,7 @@ interface FinanceDao {
         SELECT COALESCE(SUM(total), 0.0) 
         FROM transactions 
         WHERE storeId = :storeId 
-          AND status = 'SUCCESS' 
+          AND status = 'COMPLETED' 
           AND UPPER(paymentMethod) = 'CASH' 
           AND createdAt >= :startTime 
           AND createdAt <= :endTime
@@ -151,7 +151,7 @@ interface FinanceDao {
         SELECT COUNT(*)
         FROM transactions
         WHERE storeId = :storeId
-          AND status = 'SUCCESS'
+          AND status = 'COMPLETED'
           AND createdAt >= :startDate
           AND createdAt <= :endDate
     """)

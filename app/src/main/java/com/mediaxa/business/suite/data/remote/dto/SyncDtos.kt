@@ -1,6 +1,7 @@
 package com.mediaxa.business.suite.data.remote.dto
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cloud API Response Envelope
@@ -69,10 +70,10 @@ data class PaymentDto(
     val storeId: Long,
     val deviceId: String,
     val transactionUuid: String,
-    val method: String,
-    val amount: Double,
+    @SerialName("paymentMethod") val method: String,
+    @SerialName("amountPaid") val amount: Double,
     val referenceNumber: String? = null,
-    val updatedAt: Long,
+    @SerialName("paymentTime") val updatedAt: Long,
     val isDeleted: Boolean = false
 )
 

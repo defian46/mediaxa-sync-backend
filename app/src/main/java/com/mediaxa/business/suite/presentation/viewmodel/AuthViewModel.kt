@@ -82,7 +82,7 @@ class AuthViewModel(
                             username = cloudResult.user.username,
                             passwordHash = AppDatabase.hashString(passwordRaw),
                             pin = null,
-                            role = cloudResult.user.role,
+                            role = if (cloudResult.user.role == "ADMINISTRATOR") "ADMIN" else cloudResult.user.role,
                             isActive = true
                         )
                         userRepository.insertUser(newUser)

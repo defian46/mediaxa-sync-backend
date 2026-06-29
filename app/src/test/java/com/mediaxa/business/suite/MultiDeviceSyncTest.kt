@@ -42,7 +42,7 @@ class MultiDeviceSyncTest {
             paymentMethod = "CASH",
             amountReceived = 50000.0,
             changeAmount = 0.0,
-            status = "PAID",
+            status = "COMPLETED",
             updatedAt = updatedAt
         )
     }
